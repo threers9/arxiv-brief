@@ -6,6 +6,8 @@ import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
+Path("data").mkdir(exist_ok=True)
+
 genai.configure(api_key=os.environ["GEMINI_API_KEY"])
 model = genai.GenerativeModel("gemini-2.0-flash")
 
@@ -77,10 +79,14 @@ Respond ONLY with valid JSON in this exact format:
 
 # Save today's brief
 today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-output = {"date": today, "papers": papers, "keywords_used": KEYWORDS}
-Path(f"data/{today}.json").write_text(json.dumps(output, indent=2))
-Path("data/latest.json").write_text(json.dumps(output, indent=2))
-
+if papers:
+    output = {"date": today, "papers": papers, "keywords_used": KEYWORDS}
+    Path(f"data/{today}.json").write_text(json.dumps(output, indent=2))
+    Path("data/latest.json").write_text(json.dumps(output, indent=2))
+    print(f"Saved {today}.json with {len(papers)} papers")
+else:
+    print(f"No new papers for {today} (weekend or holiday) — skipping write")
+    
 # Maintain an index of all available dates
 data_files = sorted([f.stem for f in Path("data").glob("*.json") if f.stem != "latest"], reverse=True)
 Path("data/index.json").write_text(json.dumps({"dates": data_files}, indent=2))
