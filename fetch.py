@@ -41,7 +41,7 @@ url = (
 feed = feedparser.parse(url)
 
 # Keep only papers announced in the last 24h
-cutoff = datetime.now(timezone.utc) - timedelta(hours=120)
+cutoff = datetime.now(timezone.utc) - timedelta(hours=36)
 papers = []
 for entry in feed.entries:
     published = datetime.strptime(entry.published, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
