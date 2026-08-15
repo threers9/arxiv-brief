@@ -13,6 +13,7 @@
     <p class="text-sm text-slate-500 mt-1" id="meta">Loading…</p>
   </header>
 
+  <section id="digest" class="hidden bg-white border rounded-lg p-4 mb-6 shadow-sm"></section>
   <div class="flex flex-wrap gap-3 mb-6 items-center">
     <select id="dateSelect" class="border rounded px-3 py-2 bg-white"></select>
     <div class="flex gap-1 bg-white border rounded p-1">
@@ -43,6 +44,13 @@ async function loadDate(date) {
   currentData = await fetch(`${DATA}/${date}.json`).then(r => r.json());
   document.getElementById("meta").textContent =
     `${currentData.papers.length} papers · ${date} · keywords: ${currentData.keywords_used.join(", ")}`;
+  const digestEl = document.getElementById("digest");
+  if (currentData.digest) {
+    digestEl.innerHTML = `<h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500 mb-2">Today's digest</h2><p class="text-sm leading-relaxed">${currentData.digest}</p>`;
+    digestEl.classList.remove("hidden");
+  } else {
+    digestEl.classList.add("hidden");
+  }
   render();
 }
 
