@@ -1,0 +1,28 @@
+name: Daily arXiv Brief
+
+on:
+  schedule:
+    - cron: "0 2 * * 1-5"  # 02:00 UTC, Mon-Fri
+  workflow_dispatch:  # lets you also trigger manually from the Actions tab
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - run: python fetch.py
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      - name: Commit results
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add data/
+          git diff --staged --quiet || git commit -m "Daily brief $(date -u +%Y-%m-%d)"
+          git push
