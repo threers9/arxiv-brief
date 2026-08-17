@@ -41,13 +41,24 @@ url = (
 feed = feedparser.parse(url)
 
 # Keep only papers announced in the last 24h
-cutoff = datetime.now(timezone.utc) - timedelta(hours=36)
+cutoff = datetime.now(timezone.utc) - timedelta(hours=96)
+# Load IDs from recent previous briefs to skip duplicates
+seen_ids = set()
+prev_briefs = sorted(Path("data").glob("2*.json"), reverse=True)
+for f in prev_briefs[:3]:  # check last 3 days of briefs
+    try:
+        prev = json.loads(f.read_text())
+        seen_ids.update(p["arxiv_id"] for p in prev.get("papers", []))
+    except Exception:
+        pass
 papers = []
 for entry in feed.entries:
     published = datetime.strptime(entry.published, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
     if published < cutoff:
         continue
     arxiv_id = entry.id.split("/abs/")[-1]
+    if arxiv_id in seen_ids:
+        continue
     categories = [t["term"] for t in entry.tags]
     primary = categories[0] if categories else "unknown"
     papers.append({
