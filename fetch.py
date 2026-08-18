@@ -133,9 +133,9 @@ Papers:
 {paper_lines}
 
 Respond ONLY with valid JSON: {{"digest": "your 1-2 paragraph overview here"}}"""
-        print("Waiting 60s before digest to let rate limit reset...")
-        time.sleep(60)
-        for attempt in range(5):
+    print("Waiting 60s before digest to let rate limit reset...")
+    time.sleep(60)
+    for attempt in range(5):
         try:
             text = call_groq(digest_prompt).strip()
             if text.startswith("```"):
