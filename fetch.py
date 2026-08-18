@@ -10,7 +10,7 @@ Path("data").mkdir(exist_ok=True)
 
 GROQ_API_KEY = os.environ["GROQ_API_KEY"]
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "llama-3.3-70b-versatile"
+GROQ_MODEL = "openai/gpt-oss-20b"
 
 def call_groq(prompt):
     r = requests.post(
@@ -133,19 +133,38 @@ Papers:
 {paper_lines}
 
 Respond ONLY with valid JSON: {{"digest": "your 1-2 paragraph overview here"}}"""
-    try:
-        text = call_groq(digest_prompt).strip()
-        if text.startswith("```"):
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
-            text = text.strip()
-        digest = json.loads(text).get("digest", "")
-        print("Generated daily digest")
-    except Exception as e:
-        print(f"Digest generation failed: {e}")
+print("Waiting 60s before digest to let rate limit reset...")
+    time.sleep(60)
+    for attempt in range(5):
+        try:
+            text = call_groq(digest_prompt).strip()
+            if text.startswith("```"):
+                text = text.split("```")[1]
+                if text.startswith("json"):
+                    text = text[4:]
+                text = text.strip()
+            digest = json.loads(text).get("digest", "")
+            print("Generated daily digest")
+            break
+        except Exception as e:
+            msg = str(e)
+            if "retry after" in msg:
+                wait = float(msg.split("retry after ")[1].rstrip("s"))
+            else:
+                wait = 2 ** attempt * 10
+            print(f"Digest attempt {attempt+1} failed: {e} — retrying in {wait}s")
+            time.sleep(wait)
+    else:
+        print("Digest generation failed after 5 attempts")
         digest = ""
 
+# Report success/failure counts
+succeeded = sum(1 for p in papers if p["relevance_score"] > 0 or p["matched_interests"])
+failed = len(papers) - succeeded
+if failed:
+    print(f"WARNING: {failed}/{len(papers)} papers fell back to truncated abstract (LLM failed)")
+else:
+    print(f"All {len(papers)} papers scored successfully")
 
 # Save today's brief
 today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
