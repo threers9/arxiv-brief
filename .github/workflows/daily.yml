@@ -2,7 +2,7 @@ name: Daily arXiv Brief
 
 on:
   schedule:
-    - cron: "0 2 * * 1-5"  # 02:00 UTC, Mon-Fri
+    - cron: "0 6 * * 1-5"  # 06:00 UTC, Mon-Fri (arXiv RSS feed refreshes ~04:00 UTC)
   workflow_dispatch:  # lets you also trigger manually from the Actions tab
 
 jobs:

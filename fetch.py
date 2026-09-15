@@ -3,7 +3,7 @@ import json
 import os
 import time
 import requests
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from pathlib import Path
 
 Path("data").mkdir(exist_ok=True)
@@ -32,16 +32,24 @@ def call_groq(prompt):
 
 KEYWORDS = json.loads(Path("config/keywords.json").read_text())["keywords"]
 
-# Fetch recent hep-th papers (primary + cross-listed)
-url = (
-    "http://export.arxiv.org/api/query?"
-    "search_query=cat:hep-th"
-    "&sortBy=submittedDate&sortOrder=descending&max_results=150"
-)
-feed = feedparser.parse(url)
+# Fetch today's hep-th announcement (new + cross-listed) from the arXiv RSS feed.
+# The export.arxiv.org API now rate-limits (HTTP 429) shared runner IPs, and
+# feedparser silently turns that into an empty feed, so fetch with requests and
+# fail loudly on HTTP errors.
+url = "https://rss.arxiv.org/atom/hep-th"
+for attempt in range(5):
+    r = requests.get(url, headers={"User-Agent": "arxiv-brief (github.com/threers9/arxiv-brief)"}, timeout=60)
+    if r.status_code == 429 or r.status_code >= 500:
+        wait = 30 * (attempt + 1)
+        print(f"arXiv feed returned {r.status_code}, retrying in {wait}s")
+        time.sleep(wait)
+        continue
+    break
+r.raise_for_status()
+feed = feedparser.parse(r.content)
+if feed.bozo and not feed.entries:
+    raise RuntimeError(f"Could not parse arXiv feed: {feed.bozo_exception}")
 
-# Keep only papers announced in the last 24h
-cutoff = datetime.now(timezone.utc) - timedelta(hours=96)
 # Load IDs from recent previous briefs to skip duplicates
 seen_ids = set()
 prev_briefs = sorted(Path("data").glob("2*.json"), reverse=True)
@@ -53,19 +61,21 @@ for f in prev_briefs[:3]:  # check last 3 days of briefs
         pass
 papers = []
 for entry in feed.entries:
-    published = datetime.strptime(entry.published, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-    if published < cutoff:
+    # Skip replacements; keep new submissions and cross-lists
+    if entry.get("arxiv_announce_type") not in ("new", "cross"):
         continue
-    arxiv_id = entry.id.split("/abs/")[-1]
+    arxiv_id = entry.id.split(":")[-1]  # "oai:arXiv.org:2609.13163v1" -> "2609.13163v1"
     if arxiv_id in seen_ids:
         continue
     categories = [t["term"] for t in entry.tags]
     primary = categories[0] if categories else "unknown"
+    # RSS summary is "arXiv:XXXX Announce Type: new \nAbstract: ..."
+    abstract = entry.summary.split("Abstract:", 1)[-1]
     papers.append({
         "arxiv_id": arxiv_id,
         "title": entry.title.strip().replace("\n", " "),
-        "authors": ", ".join(a.name for a in entry.authors),
-        "abstract": entry.summary.strip().replace("\n", " "),
+        "authors": ", ".join(a.name for a in entry.get("authors", [])),
+        "abstract": abstract.strip().replace("\n", " "),
         "url": f"https://arxiv.org/abs/{arxiv_id}",
         "pdf_url": f"https://arxiv.org/pdf/{arxiv_id}",
         "primary_category": primary,
